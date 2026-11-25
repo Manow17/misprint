@@ -142,6 +142,9 @@ kbd{font:inherit;font-size:11.5px;border:1.5px solid var(--ink);border-bottom-wi
 .roads{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .roads .lh{margin-top:12px}
 select{font:inherit;font-size:14.5px;font-weight:700;background:transparent;border:0;border-bottom:2px solid var(--ink);padding:2px 0;color:var(--ink);max-width:270px;border-radius:0}
+.seg.tools button{padding:3px 10px;font-size:13.5px}
+.seg.tools button kbd{border:0;padding:0 3px 0 0;background:none;font-size:11px;opacity:.6}
+.tracks .by{font-size:12px;opacity:.75;margin-left:6px;font-family:'Courier Prime',monospace;text-transform:none;letter-spacing:0}
 .teams{font-family:Anton,Impact,sans-serif;font-size:22px;letter-spacing:.02em;margin:10px 0 2px}
 #toast{position:fixed;left:50%;bottom:58px;transform:translateX(-50%) rotate(-1deg);background:var(--paper);background-image:var(--noise);border:1.5px solid var(--ink);padding:6px 14px;font-size:14px;z-index:10;box-shadow:3px 3px 0 var(--ink);opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw}
 #toast.on{opacity:1}
@@ -175,6 +178,10 @@ select{font:inherit;font-size:14.5px;font-weight:700;background:transparent;bord
     <div class="actions">
       <button class="btn" id="btnSolo" style="--r:-.8deg">Solo run</button>
       <button class="btn" id="btnHost" style="--r:.6deg">Host a race</button>
+    </div>
+    <div class="actions" style="margin-top:2px">
+      <button class="btn sm" id="btnCommunity">Community levels</button>
+      <button class="btn sm" id="btnBuild">Build a level</button>
     </div>
     <div class="join"><span class="lbl">Got a code?</span><input id="inCode" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false"><button class="btn sm" id="btnJoin">Join</button></div>
     <div id="menuMsg" class="msg"></div>
@@ -234,6 +241,42 @@ select{font:inherit;font-size:14.5px;font-weight:700;background:transparent;bord
     <div id="resMsg" class="msg"></div>
   </div>
 
+  <div id="scrCommunity" class="scr" hidden>
+    <div class="kicker"><span>Community levels</span><span id="comCount"></span></div>
+    <p class="blurb small">Levels other players built in the workshop and published. Pick one and play it.</p>
+    <ol class="tracks" id="comList" style="max-height:48vh"></ol>
+    <div id="comMsg" class="msg"></div>
+    <div class="actions">
+      <button class="btn" id="btnComPlay" style="--r:-.6deg" disabled>Play it</button>
+      <button class="btn sm" id="btnComBuild">Build your own</button>
+      <button class="btn ghost" id="btnComBack">Back</button>
+    </div>
+    <p class="fine" id="comShare"></p>
+  </div>
+
+  <div id="scrEditor" class="scr" hidden>
+    <div class="kicker"><span>The workshop</span><span id="edCount">0 pieces</span></div>
+    <div class="form">
+      <label class="row"><span class="lbl">Level name</span><input id="edName" maxlength="40" autocomplete="off" spellcheck="false" style="width:230px" placeholder="untitled"></label>
+      <div class="row"><span class="lbl">Song no.</span><input id="edSeed" maxlength="6" autocomplete="off" spellcheck="false" style="width:80px"><button class="link" id="edReroll" type="button">new song</button></div>
+      <div class="row"><span class="lbl">Speed</span><div class="seg tiers" id="edTier"></div></div>
+    </div>
+    <p class="fine" id="edInfo"></p>
+    <div class="lh">Pieces</div>
+    <div class="seg tools" id="edTools"><button type="button" data-k="r"><kbd>1</kbd>ring</button><button type="button" data-k="w"><kbd>2</kbd>wall</button><button type="button" data-k="t"><kbd>3</kbd>teeth</button><button type="button" data-k="p"><kbd>4</kbd>pad</button><button type="button" data-k="x"><kbd>5</kbd>erase</button></div>
+    <p class="fine">Click a square on the road to place a piece. Right-click removes it, and you can drag to paint. Scroll to move through the song (it runs bottom to top). Press <kbd>space</kbd> to hear the music from where you are, so you can put pieces on the beat.</p>
+    <div class="actions">
+      <button class="btn" id="edTest" style="--r:-.6deg">Test drive</button>
+      <button class="btn" id="edPublish" style="--r:.6deg">Publish</button>
+    </div>
+    <div class="actions" style="margin-top:0">
+      <button class="btn sm" id="edListen">Play music</button>
+      <button class="btn ghost" id="edClear">Clear</button>
+      <button class="btn ghost" id="edBack">Back</button>
+    </div>
+    <div id="edMsg" class="msg"></div>
+  </div>
+
   <footer class="foot"><span class="swatches"><i style="background:var(--blue)"></i><i style="background:var(--pink)"></i><i style="background:var(--yellow)"></i><i style="background:var(--ink)"></i></span><span id="footTxt">p. 01</span></footer>
 </section></div>
 
@@ -281,15 +324,15 @@ const saveS = () => { for (const k of ['name', 'vol', 'off', 'seed', 'diff', 'se
 
 // ---------------------------------------------------------------- tiers + the track list
 const TIERS = [
-  { name: 'easy',     sp: 0.92, gap: 0.98, ring: 1.0,  slew: 1.15, bpm: [112, 122], hull: 3 },
-  { name: 'normal',   sp: 1.0,  gap: 0.84, ring: 0.5,  slew: 1.45, bpm: [122, 134], hull: 3 },
-  { name: 'hard',     sp: 1.1,  gap: 0.7,  ring: 0.25, slew: 1.95, bpm: [130, 144], hull: 3 },
-  { name: 'brutal',   sp: 1.2,  gap: 0.6,  ring: 0.25, slew: 2.4,  bpm: [138, 152], hull: 3 },
-  { name: 'misprint', sp: 1.3,  gap: 0.52, ring: 0.25, slew: 2.85, bpm: [148, 162], hull: 2 }
+  { name: 'easy',     sp: 0.84, gap: 1.12, ring: 1.0,  slew: 0.95, bpm: [104, 114], hull: 5 },
+  { name: 'normal',   sp: 0.94, gap: 0.96, ring: 0.5,  slew: 1.25, bpm: [114, 126], hull: 4 },
+  { name: 'hard',     sp: 1.05, gap: 0.8,  ring: 0.5,  slew: 1.7,  bpm: [126, 138], hull: 3 },
+  { name: 'brutal',   sp: 1.16, gap: 0.66, ring: 0.25, slew: 2.25, bpm: [136, 150], hull: 3 },
+  { name: 'misprint', sp: 1.26, gap: 0.56, ring: 0.25, slew: 2.7,  bpm: [146, 160], hull: 2 }
 ];
 const TRACKS = [
-  { name: 'First Proof', seed: '1101', tier: 0 }, { name: 'Gutter Run', seed: '2207', tier: 0 },
-  { name: 'Registration', seed: '3313', tier: 1 }, { name: 'Bleed Line', seed: '4421', tier: 1 },
+  { name: 'First Proof', seed: '1101', tier: 0 }, { name: 'Gutter Run', seed: '2207', tier: 0 }, { name: 'Dry Run', seed: '2718', tier: 0 },
+  { name: 'Registration', seed: '3313', tier: 1 }, { name: 'Bleed Line', seed: '4421', tier: 1 }, { name: 'Crop Marks', seed: '4807', tier: 1 },
   { name: 'Halftone Heat', seed: '5531', tier: 2 }, { name: 'Overprint', seed: '6643', tier: 2 },
   { name: 'Plate Crack', seed: '7757', tier: 3 }, { name: 'Ink Flood', seed: '8861', tier: 3 },
   { name: 'Cylinder Slip', seed: '9973', tier: 4 }, { name: 'Total Misprint', seed: '0000', tier: 4 }
@@ -378,12 +421,14 @@ function buildLevel(seed, tier) {
   const struct = STRUCTS[ti <= 1 ? 0 : ti === 2 ? 1 : 2];
   const KS = { intro: 1.0, verse: 1.1, build: 1.2, drop: 1.35, break: 1.0, outro: 1.15 };
   const THEMES = ti === 0 ? ['gates', 'pads', 'slalom'] : ti === 1 ? ['gates', 'pads', 'slalom', 'teeth', 'corridor'] : ['gates', 'pads', 'slalom', 'teeth', 'corridor', 'mixed', 'mixed'];
-  const sections = []; let b = 0, z = 0, drops = 0, lastTheme = '';
+  const sections = []; let b = 0, z = 0, drops = 0, lastTheme = '', verses = 0;
   for (const [name, bars, kind] of struct) {
-    const sp = (KS[kind] + (kind === 'drop' ? drops * 0.12 : 0)) * T.sp, upb = BASE_SPEED * spb * sp;
-    let theme = '';
-    if (kind === 'verse' || kind === 'drop') { do theme = R.pick(THEMES); while (theme === lastTheme); lastTheme = theme; }
-    const s = { name, kind, bars, speed: sp, b0: b, b1: b + bars * 4, z0: z, z1: z + upb * bars * 4, upb, theme, idx: kind === 'drop' ? drops : 0, mix: [] };
+    const sp = (KS[kind] + (kind === 'drop' ? drops * 0.1 : 0)) * T.sp, upb = BASE_SPEED * spb * sp;
+    let theme = ''; const warm = kind === 'verse' && verses++ === 0;   // the first verse is a warm-up
+    if (warm) theme = R.pick(ti <= 1 ? ['gates', 'slalom'] : ['gates', 'slalom', 'pads']);
+    else if (kind === 'verse' || kind === 'drop') { do theme = R.pick(THEMES); while (theme === lastTheme); }
+    if (theme) lastTheme = theme;
+    const s = { name, kind, bars, speed: sp, b0: b, b1: b + bars * 4, z0: z, z1: z + upb * bars * 4, upb, theme, warm, idx: kind === 'drop' ? drops : 0, mix: [] };
     for (let i = 0; i < bars / 2; i++) s.mix.push(R.pick(['gates', 'slalom', 'teeth', 'pads', 'corridor']));
     if (kind === 'drop') drops++;
     sections.push(s); z += upb * bars * 4; b += bars * 4;
@@ -494,7 +539,8 @@ function buildLevel(seed, tier) {
   const spike = (bb, x0, x1) => { const o = { type: 'spike', b: bb, x0, x1, dep: SPIKE_D }; O.push(o); spikes.push(o); };
   const full = bb => spike(bb, -WALL_EDGE, WALL_EDGE);
   const part = (bb, p) => spike(bb, p - 0.34, p + 0.34);
-  const gate = (bb, p, g = T.gap) => { const l = p - g / 2, r = p + g / 2; if (l > -0.98) block(bb, -WALL_EDGE, l); if (r < 0.98) block(bb, r, WALL_EDGE); };
+  let gapNow = T.gap;
+  const gate = (bb, p, g = gapNow) => { const l = p - g / 2, r = p + g / 2; if (l > -0.98) block(bb, -WALL_EDGE, l); if (r < 0.98) block(bb, r, WALL_EDGE); };
   const pillar = (bb, p, moving) => {
     let side = bb % 2 ? 1 : -1; if (Math.abs(p + side * 0.78) > 0.9) side = -side;
     const cx = clamp(p + side * 0.78, -0.88, 0.88); if (Math.abs(cx - p) < 0.6) return;
@@ -519,10 +565,12 @@ function buildLevel(seed, tier) {
     }
   };
   for (const s of sections) {
+    gapNow = T.gap + (s.warm ? 0.16 : 0);
     for (let bb = s.b0; bb < s.b1; bb++) {
       const q = bb - s.b0, bi = q % 4, bar = Math.floor(q / 4), p = pathX(L, bb);
+      if (s.warm && ti <= 2 && bi !== 0) continue;
       if (s.kind === 'intro') { if (ti >= 3 && bar >= 1 && bi === 0) gate(bb, p, T.gap + 0.15); continue; }
-      if (s.kind === 'build') { const every = (ti >= 2 && bar >= s.bars - 2) ? 1 : 2; if (q % every === 0) full(bb); continue; }
+      if (s.kind === 'build') { const every = ti === 0 ? 4 : (ti >= 3 && bar >= s.bars - 2) ? 1 : 2; if (q % every === 0) full(bb); continue; }
       if (s.kind === 'break') { if (ti >= 3 && bi === 2) pillar(bb, p, ti >= 4); continue; }
       if (s.kind === 'outro') { if (ti >= 2 && bar < 2 && bi === 0) gate(bb, p); continue; }
       let th = s.theme === 'mixed' ? s.mix[Math.floor(bar / 2)] : s.theme;
@@ -741,6 +789,7 @@ const isTyping = e => e.target && (e.target.tagName === 'INPUT' || e.target.tagN
 addEventListener('keydown', e => {
   if (isTyping(e)) { if (e.key === 'Enter' && e.target.id === 'inCode') $('btnJoin').click(); return; }
   const k = e.code;
+  if (G.mode === 'editor') { edKey(e); return; }
   if (G.mode === 'race') {
     if (k === 'Space' || k === 'ArrowUp' || k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowDown') e.preventDefault();
     if (k === 'ArrowLeft' || k === 'KeyA') { KEYS.left = true; G.steer = 'keys'; }
@@ -776,6 +825,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('pointerlockerror', () => { if (G.mode === 'race' && !G.finished) toast('Click the road to lock your mouse in.'); });
 cv.addEventListener('pointermove', e => {
+  if (G.mode === 'editor') { edPointer(e, 'move'); return; }
   if (G.mode !== 'race') return;
   if (isLocked()) {
     if (e.movementX) { G.steer = 'mouse'; G.mouseX = clamp((G.mouseX == null ? CX : G.mouseX) + e.movementX, 0, W); }
@@ -785,6 +835,7 @@ cv.addEventListener('pointermove', e => {
 });
 cv.addEventListener('pointerdown', e => {
   audioInit();
+  if (G.mode === 'editor') { edPointer(e, 'down'); return; }
   if (G.mode !== 'race') return;
   if (e.pointerType === 'touch') { G.steer = 'mouse'; G.mouseX = e.clientX; if (e.clientY > H * 0.7) doJump(e.timeStamp); else { HELD.add('p' + e.pointerId); doTap(e.timeStamp); } return; }
   if (!G.finished) lockMouse();
@@ -795,7 +846,7 @@ document.addEventListener('contextmenu', e => { if (G.mode === 'race') e.prevent
 document.addEventListener('pointerdown', () => audioInit(), { capture: true });
 
 function onEsc() {
-  if (G.solo) { quitToMenu(); return; }
+  if (G.solo) { leaveRace(); return; }
   const now = performance.now();
   if (now - G.esc < 1500) { G.esc = 0; if (!G.finished) finishRace(true); }
   else { G.esc = now; toast('Press esc again to bail on this race.'); }
@@ -859,7 +910,7 @@ function newRaceState() {
 }
 function startRace(o) {
   audioInit();
-  const L = getLevel(o.seed, o.diff); resetLevel(L);
+  const L = o.level || getLevel(o.seed, o.diff); resetLevel(L); G.custom = o.custom || null;
   G.L = L; G.solo = !!o.solo; G.seed = o.seed; G.diff = o.diff; G.racers = o.racers || [];
   newRaceState();
   const meR = G.racers.find(r => r.id === myId());
@@ -869,7 +920,7 @@ function startRace(o) {
   for (const r of G.racers) if (r.id !== myId()) LIVE.set(r.id, { buf: [], score: 0, combo: 0, hp: L.hull, acc: 1, w: false, fin: null, name: r.name, ink: r.ink, road: r.road || 0, gone: false });
   G.startPerf = o.at; G.audioOn = false; G.songCtx = o.at / 1000; G.clockOff = 0;
   tryEnableAudio();
-  G.best = G.solo ? store.get('best.' + o.seed + '.' + o.diff, null) : null;
+  G.best = !G.solo ? null : G.custom ? (G.custom.id ? store.get('best2.c.' + G.custom.id, null) : null) : store.get('best2.' + o.seed + '.' + o.diff, null);
   G.mode = 'race'; G.lastPz = zAtBeat(L, (performance.now() - o.at) / 1000 / L.spb);
   G.word = ''; showScreen(null); $('hud').hidden = false; document.body.classList.add('racing');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -892,8 +943,9 @@ function finishRace(forfeit) {
   const acc = accuracy(), w = G.p.wrecked || !!forfeit;
   G.result = { score: G.score, acc, chain: G.maxCombo, grade: gradeOf(acc, w), w };
   if (!G.solo) netSend({ t: 'fin', score: G.score, acc, chain: G.maxCombo, grade: G.result.grade, w });
-  if (G.solo && !forfeit) {
-    const key = 'best.' + G.seed + '.' + G.diff, prev = store.get(key, null);
+  if (G.custom && G.custom.test && !forfeit && G.ed) G.ed.tested = G.custom.sig;   // driven to the finish: this version may be published
+  if (G.solo && !forfeit && !(G.custom && !G.custom.id)) {
+    const key = G.custom ? 'best2.c.' + G.custom.id : 'best2.' + G.seed + '.' + G.diff, prev = store.get(key, null);
     if (!prev || G.score > prev.score) { store.set(key, { score: G.score, name: S.name, ghost: G.rec }); G.result.newBest = !!prev; G.result.firstBest = !prev; }
     G.result.prev = prev ? prev.score : null;
   }
@@ -911,13 +963,13 @@ function quitToMenu() {
 let lastTick = performance.now(), lastFrame = performance.now();
 function tick() {
   const now = performance.now(), dt = Math.min(0.05, (now - lastTick) / 1000); lastTick = now;
-  if (G.mode === 'race' || G.mode === 'results') updateRace(now, dt); else updateAttract(now, dt);
+  if (G.mode === 'race' || G.mode === 'results') updateRace(now, dt); else if (G.mode === 'editor') updateEditor(now); else updateAttract(now, dt);
 }
 function frame() {
   requestAnimationFrame(frame);
   const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
   tick();
-  render(now, dt);
+  if (G.mode === 'editor') renderEditor(); else render(now, dt);
   if (G.mode === 'race') updateHUD(now);
 }
 setInterval(() => { if (performance.now() - lastTick > 45) tick(); }, 25);
@@ -929,7 +981,7 @@ function clockTick(now) {
   return now / 1000 + G.clockOff - G.songCtx - S.off / 1000;
 }
 function scheduleAudio() {
-  if (!G.audioOn || G.mode !== 'race') return;
+  if (!G.audioOn || !(G.mode === 'race' || (G.mode === 'editor' && G.ed && G.ed.playing))) return;
   const c = AU.ctx, horizon = c.currentTime + 0.3, E = G.L.events, spb = G.L.spb;
   while (G.evi < E.length) {
     const e = E[G.evi], at = G.songCtx + e.b * spb; if (at > horizon) break; G.evi++;
@@ -1500,7 +1552,7 @@ function updateHUD(now) {
     standAt = now + 200;
     let rows = [{ name: S.name, ink: (ROSTER.get(myId()) || { ink: 0 }).ink, score: G.score, me: true, w: p.wrecked, road: G.road }];
     if (G.solo) {
-      setText('hStandTitle', trackName(G.seed, G.diff) + ' / ' + TIERS[G.diff].name);
+      setText('hStandTitle', raceTitle());
       if (G.best) rows.push({ name: 'best run', ink: -1, score: G.best.score, w: false });
     } else {
       const { tot } = roadTotals(); setText('hStandTitle', `A ${tot[0].toLocaleString()} · B ${tot[1].toLocaleString()}`);
@@ -1523,10 +1575,10 @@ function buildRuler() {
 function sheetVisible() { return !$('sheetWrap').hidden; }
 function showScreen(name) {
   $('sheetWrap').hidden = !name;
-  $('scrMenu').hidden = name !== 'menu'; $('scrLobby').hidden = name !== 'lobby'; $('scrResults').hidden = name !== 'results';
+  for (const [k, id] of [['menu', 'scrMenu'], ['lobby', 'scrLobby'], ['results', 'scrResults'], ['community', 'scrCommunity'], ['editor', 'scrEditor']]) $(id).hidden = name !== k;
   if (name) { $('hud').hidden = true; tear($('sheet')); }
   if (name === 'lobby') { G.mode = 'lobby'; renderLobby(); }
-  $('footTxt').textContent = name === 'lobby' ? 'p. 02 — direct line, WebRTC' : name === 'results' ? 'p. 03 — proofs' : 'p. 01';
+  $('footTxt').textContent = ({ lobby: 'p. 02 — direct line, WebRTC', results: 'p. 03 — proofs', community: 'p. 04 — the library', editor: 'p. 05 — the workshop' })[name] || 'p. 01';
 }
 function tear(el) {
   const pts = ['0 0']; const steps = 46;
@@ -1542,7 +1594,7 @@ function trackInfo(seed, tier) { const L = getLevel(seed, tier); const secs = Ma
 function tierSeg(el, cb) { el.innerHTML = TIERS.map((t, i) => `<button type="button" data-d="${i}">${t.name}</button>`).join(''); for (const b of el.children) b.onclick = () => cb(+b.dataset.d); }
 function renderTrackList() {
   $('trackList').innerHTML = TRACKS.map((tr, i) => {
-    const b = store.get('best.' + tr.seed + '.' + tr.tier, null);
+    const b = store.get('best2.' + tr.seed + '.' + tr.tier, null);
     return `<li data-i="${i}" data-t="${tr.tier}" class="${S.sel === i ? 'on' : ''}"><span class="no">${String(i + 1).padStart(2, '0')}</span><span class="nm">${esc(tr.name)}</span><span class="tier">${TIERS[tr.tier].name}</span><span class="best">${b ? b.score.toLocaleString() : '—'}</span></li>`;
   }).join('');
 }
@@ -1552,7 +1604,7 @@ function syncMenu() {
   for (const b of $('segTheme').children) b.classList.toggle('on', b.dataset.v === S.theme);
   $('customRow').classList.toggle('sel', S.sel < 0);
   renderTrackList();
-  const seed = selSeed(), tier = selTier(), best = store.get('best.' + seed + '.' + tier, null);
+  const seed = selSeed(), tier = selTier(), best = store.get('best2.' + seed + '.' + tier, null);
   $('seedInfo').textContent = `${trackName(seed, tier)} — ${trackInfo(seed, tier)}${best ? ' · your best ' + best.score.toLocaleString() : ''}`;
 }
 function applyThemeChange() {
@@ -1629,7 +1681,7 @@ function renderResults() {
   const r = G.result; if (!r) return;
   const st = $('stamp'); st.textContent = r.grade; st.classList.toggle('bad', r.w || r.grade === 'MISPRINT');
   st.style.animation = 'none'; void st.offsetWidth; st.style.animation = '';
-  $('resTrack').textContent = `${trackName(G.seed, G.diff)} / ${TIERS[G.diff].name}`;
+  $('resTrack').textContent = raceTitle();
   const rows = [{ name: S.name, ink: (ROSTER.get(myId()) || { ink: 0 }).ink, me: true, road: G.road, ...r }];
   if (!G.solo) for (const l of LIVE.values()) rows.push({ name: l.name, ink: l.ink, road: l.road, pending: !l.fin && !l.gone, gone: l.gone && !l.fin, ...(l.fin || { score: l.score, acc: l.acc, chain: 0, grade: '' }) });
   else if (r.prev != null) rows.push({ name: 'previous best', ink: -1, score: r.prev, acc: null, chain: null, grade: '' });
@@ -1646,21 +1698,309 @@ function renderResults() {
   let note = `${c.sharp} sharp, ${c.clean} clean, ${c.blur} blur, ${c.miss + c.wide} missed, ${c.hop} hops, ${c.torn} torn.`;
   if (errs.length >= 8 && Math.abs(avg) > 0.018) note += ` You hit about ${Math.round(Math.abs(avg) * 1000)} ms ${avg > 0 ? 'late' : 'early'} on average${avg > 0 ? ' — try raising the offset.' : ' — try lowering the offset.'}`;
   if (r.firstBest) note += ' First run on this track saved as a ghost.'; else if (r.newBest) note += ' New best. Your ghost has been replaced.';
+  if (G.custom && G.custom.test) note += G.ed && G.ed.tested === G.custom.sig ? ' Driven to the finish, so this version can be published.' : ' Not driven to the finish yet, so it cannot be published.';
   $('resNote').textContent = note;
   const host = NET.role === 'host', solo = G.solo;
-  $('btnAgain').hidden = !(solo || host); $('btnNew').hidden = !(solo || host);
+  $('btnAgain').hidden = !(solo || host); $('btnNew').hidden = !(solo || host) || !!G.custom;
   $('btnNew').textContent = S.sel >= 0 ? 'Next track' : 'New number';
-  $('btnMenu').textContent = solo ? 'Menu' : NET.role ? 'Back to room' : 'Menu';
+  $('btnMenu').textContent = G.custom ? (G.custom.test ? 'Back to workshop' : 'Library') : solo ? 'Menu' : NET.role ? 'Back to room' : 'Menu';
   $('resMsg').textContent = (!solo && !host && NET.role) ? 'Waiting on the host to call the next one.' : (!solo && !NET.role ? 'The room is closed.' : '');
 }
 function advancePick() { if (S.sel >= 0) S.sel = (S.sel + 1) % TRACKS.length; else S.seed = randSeed(); saveS(); }
-$('btnAgain').onclick = () => { if (G.solo) startSolo(G.seed, G.diff); else if (NET.role === 'host') hostStart(); };
+$('btnAgain').onclick = () => { if (G.custom) startCustom(G.custom.data, G.custom); else if (G.solo) startSolo(G.seed, G.diff); else if (NET.role === 'host') hostStart(); };
 $('btnNew').onclick = () => { advancePick(); if (G.solo) startSolo(); else if (NET.role === 'host') { hostPick(); hostStart(); } };
 $('btnMenu').onclick = () => {
   G.audioOn = false; $('hud').hidden = true;
   if (!G.solo && NET.role) { showScreen('lobby'); attractReset(); }
-  else { quitToMenu(); syncMenu(); }
+  else leaveRace();
 };
+
+// ---------------------------------------------------------------- community levels (Supabase)
+// Paste your Supabase "Project URL" and its anon / publishable key here (README has the steps).
+// That key is designed to be public: the database rules only let people read levels and add new ones.
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+const sbReady = () => !!(SUPABASE_URL && SUPABASE_KEY);
+async function sb(path, opts = {}) {
+  const headers = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+  if (SUPABASE_KEY.startsWith('eyJ')) headers.Authorization = 'Bearer ' + SUPABASE_KEY;   // older anon keys are JWTs
+  const res = await fetch(SUPABASE_URL.replace(/\/+$/, '') + '/rest/v1/' + path, Object.assign({}, opts, { headers: Object.assign(headers, opts.headers || {}) }));
+  const txt = await res.text();
+  if (!res.ok) { let m = txt; try { m = JSON.parse(txt).message || txt; } catch (e) { } throw new Error(m || ('HTTP ' + res.status)); }
+  return txt ? JSON.parse(txt) : null;
+}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const sbList = () => sb('levels?select=id,name,author,seed,tier,created_at&order=created_at.desc&limit=80');
+const sbGet = async id => UUID_RE.test(id || '') ? ((await sb('levels?select=*&id=eq.' + id)) || [])[0] || null : null;
+const sbPublish = row => sb('levels', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
+const levelLink = id => location.href.split('#')[0] + '#level=' + id;
+
+// ---------------------------------------------------------------- custom levels: 7 lanes × half-beats
+const LANES = 7, LANE_W = 2 / LANES, laneX = i => -1 + LANE_W * (i + 0.5);
+const PIECES = { r: 'ring', w: 'wall', t: 'teeth', p: 'pad' };
+function cleanLevel(row) {
+  if (!row || !row.data || !Array.isArray(row.data.objs)) return null;
+  const objs = [];
+  for (const o of row.data.objs.slice(0, 4000)) {
+    if (!Array.isArray(o)) continue; const [hb, k, lane] = o;
+    if (Number.isInteger(hb) && hb >= 0 && hb < 4000 && typeof k === 'string' && PIECES[k] && Number.isInteger(lane) && lane >= 0 && lane < LANES) objs.push([hb, k, lane]);
+  }
+  return { id: UUID_RE.test(row.id || '') ? row.id : null, name: String(row.name || 'untitled').slice(0, 40), author: String(row.author || 'anon').slice(0, 20), seed: String(row.seed || '1000').replace(/[^0-9A-Za-z]/g, '').slice(0, 6) || '1000', tier: clamp(row.tier | 0, 0, 4), objs };
+}
+function buildCustomLevel(d) {
+  const base = buildLevel(d.seed, d.tier);       // fresh copy: the song, sections and road shape come from the song number
+  const L = Object.assign({}, base), O = [], rings = [], spikes = [], hw = LANE_W / 2;
+  for (const o of base.sets[0].objs) if (o.type === 'sign' || o.type === 'finish') O.push(Object.assign({}, o));
+  for (const [hb, k, lane] of d.objs) {
+    const b = hb / 2, x = laneX(lane); if (b > base.total - 2) continue;
+    if (k === 'r') { const r = { type: 'ring', b, x, deg: 0 }; rings.push(r); O.push(r); }
+    else if (k === 'w') O.push({ type: 'block', b, x0: x - hw, x1: x + hw, dep: BLOCK_D, mv: null, h: BLOCK_H });
+    else if (k === 't') { const sp = { type: 'spike', b, x0: x - hw, x1: x + hw, dep: SPIKE_D }; O.push(sp); spikes.push(sp); }
+    else if (k === 'p') O.push({ type: 'pad', b, x0: x - hw, x1: x + hw, dep: 650 });
+  }
+  for (const o of O) { o.z = zAtBeat(L, o.b); o.t = o.b * L.spb; if (o.dep == null) o.dep = 0; }
+  O.sort((a, c) => a.z - c.z); rings.sort((a, c) => a.t - c.t);
+  let lastBar = -1, num = 0;
+  for (const r of rings) { const bar = Math.floor(r.b / 4); if (bar !== lastBar) { num = 0; lastBar = bar; } r.num = ++num; }
+  L.maxDep = O.reduce((m, o) => Math.max(m, o.dep), 0);
+  const set = { objs: O, rings, spikes, pads: O.filter(o => o.type === 'pad') };
+  L.sets = [set, mirrorSet(set)];
+  return L;
+}
+function startCustom(d, custom) {
+  startRace({ level: buildCustomLevel(d), seed: d.seed, diff: d.tier, at: performance.now() + 3200, racers: [{ id: 'me', name: S.name, ink: 0, road: 0 }], solo: true, custom: Object.assign({}, custom, { data: d }) });
+}
+function raceTitle() { return G.custom ? G.custom.name + (G.custom.test ? ' (test drive)' : '') : `${trackName(G.seed, G.diff)} / ${TIERS[G.diff].name}`; }
+// leave a race back to wherever it was started from
+function leaveRace() {
+  G.audioOn = false; $('hud').hidden = true; document.body.classList.remove('racing'); unlockMouse();
+  if (G.custom && G.custom.test) openEditor();
+  else if (G.custom) openCommunity(G.custom.id);
+  else { quitToMenu(); syncMenu(); }
+}
+
+// ---------------------------------------------------------------- the workshop (level editor)
+G.ed = null;
+function openEditor() {
+  const d = store.get('draft', null) || { name: '', seed: randSeed(), tier: 1, objs: [] };
+  if (!G.ed) G.ed = { tool: 'r', scroll: 0, hover: null, drag: null, playing: false, head: 0, tested: '' };
+  const ed = G.ed; stopEdMusic();
+  ed.name = String(d.name || ''); ed.seed = String(d.seed || randSeed()); ed.tier = clamp(d.tier | 0, 0, 4);
+  ed.objs = new Map(); for (const [hb, k, lane] of (d.objs || [])) ed.objs.set(hb * 8 + lane, k);
+  ed.L = getLevel(ed.seed, ed.tier); ed.scroll = clamp(ed.scroll, 0, ed.L.total - 4);
+  G.mode = 'editor'; G.split = false; showScreen('editor'); syncEditor(); cv.style.cursor = 'crosshair';
+  $('edMsg').textContent = W < 900 ? 'The workshop needs a wider window (a laptop or desktop screen).' : '';
+}
+function edData() {
+  const ed = G.ed, objs = [];
+  for (const [key, k] of ed.objs) objs.push([Math.floor(key / 8), k, key % 8]);
+  objs.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
+  return { name: ed.name.trim(), seed: ed.seed, tier: ed.tier, objs };
+}
+function edSig() { const d = edData(); return d.seed + '|' + d.tier + '|' + JSON.stringify(d.objs); }
+function edSave() { store.set('draft', edData()); syncEditorInfo(); }
+function syncEditor() {
+  const ed = G.ed;
+  if (document.activeElement !== $('edName')) $('edName').value = ed.name;
+  if (document.activeElement !== $('edSeed')) $('edSeed').value = ed.seed;
+  for (const b of $('edTier').children) b.classList.toggle('on', +b.dataset.d === ed.tier);
+  for (const b of $('edTools').children) b.classList.toggle('on', b.dataset.k === ed.tool);
+  syncEditorInfo();
+}
+function syncEditorInfo() {
+  const ed = G.ed, L = ed.L, secs = Math.round(L.endTime), ok = ed.tested && ed.tested === edSig();
+  $('edInfo').textContent = `${TIERS[ed.tier].name} speed · ${L.bpm} bpm · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} long. ${ok ? 'Driven to the finish: ready to publish.' : 'Not test-driven yet.'}`;
+  $('edCount').textContent = `${ed.objs.size} piece${ed.objs.size === 1 ? '' : 's'}`;
+}
+function edSongChanged() { stopEdMusic(); const ed = G.ed; ed.L = getLevel(ed.seed, ed.tier); ed.scroll = clamp(ed.scroll, 0, ed.L.total - 4); syncEditor(); edSave(); }
+function edGeom() {
+  const sheetW = sheetVisible() ? Math.min(560, W) : 0, left = sheetW + 40;
+  const room = W - left - 150, gw = clamp(room, 200, 430), gx = left + Math.max(0, (room - gw) / 2);
+  return { gx, gw, top: 40, bot: H - 40, rowH: clamp(Math.round(H / 48), 11, 20), lw: gw / LANES };
+}
+function edCellAt(px, py) {
+  const g = edGeom(), ed = G.ed;
+  if (px < g.gx || px >= g.gx + g.gw || py < g.top || py > g.bot) return null;
+  const hb = Math.floor((g.bot - py) / g.rowH + ed.scroll * 2);
+  if (hb < 0 || hb >= ed.L.total * 2 - 4) return null;
+  return { lane: clamp(Math.floor((px - g.gx) / g.lw), 0, LANES - 1), hb };
+}
+function edPointer(e, kind) {
+  const ed = G.ed; if (!ed) return;
+  const c = edCellAt(e.clientX, e.clientY); ed.hover = c;
+  if (kind === 'down') {
+    if (!c) return;
+    const cur = ed.objs.get(c.hb * 8 + c.lane);
+    ed.drag = { mode: (e.button === 2 || ed.tool === 'x' || cur === ed.tool) ? 'erase' : 'paint', last: -1 };
+    edApply(c);
+  } else if (ed.drag && c) edApply(c);
+}
+function edApply(c) {
+  const ed = G.ed, key = c.hb * 8 + c.lane; if (ed.drag.last === key) return; ed.drag.last = key;
+  if (ed.drag.mode === 'erase') { if (!ed.objs.delete(key)) return; }
+  else { if (ed.objs.get(key) === ed.tool) return; ed.objs.set(key, ed.tool); sfx('tap'); }
+  edSave();
+}
+function edScroll(db) { const ed = G.ed; if (!ed || ed.playing) return; ed.scroll = clamp(ed.scroll + db, 0, Math.max(0, ed.L.total - 4)); }
+function edKey(e) {
+  const k = e.code, ed = G.ed, tools = { Digit1: 'r', Digit2: 'w', Digit3: 't', Digit4: 'p', Digit5: 'x' };
+  if (tools[k]) { ed.tool = tools[k]; syncEditor(); }
+  else if (k === 'Space') { e.preventDefault(); toggleEdMusic(); }
+  else if (k === 'ArrowUp' || k === 'KeyW') { e.preventDefault(); edScroll(1); }
+  else if (k === 'ArrowDown' || k === 'KeyS') { e.preventDefault(); edScroll(-1); }
+  else if (k === 'PageUp') { e.preventDefault(); edScroll(8); }
+  else if (k === 'PageDown') { e.preventDefault(); edScroll(-8); }
+  else if (k === 'Home') ed.scroll = 0;
+}
+function toggleEdMusic() { if (G.ed && G.ed.playing) stopEdMusic(); else startEdMusic(); }
+function startEdMusic() {
+  audioInit(); const ed = G.ed; if (!AU.ctx) return;
+  const L = ed.L, from = Math.floor(ed.scroll);
+  G.L = L; G.songCtx = AU.ctx.currentTime + 0.12 - from * L.spb; G.audioOn = true; G.clockOff = null;
+  G.evi = 0; while (G.evi < L.events.length && L.events[G.evi].b < from) G.evi++;
+  AU.dly.delayTime.value = L.spb * 0.75;
+  ed.playing = true; ed.head = from; $('edListen').textContent = 'Stop music';
+}
+function stopEdMusic() { if (!G.ed || !G.ed.playing) return; G.ed.playing = false; G.audioOn = false; $('edListen').textContent = 'Play music'; }
+function updateEditor(now) {
+  const ed = G.ed; if (!ed || !ed.playing) return;
+  const b = (clockTick(now) + S.off / 1000) / ed.L.spb; ed.head = b;
+  if (b > ed.L.total) { stopEdMusic(); return; }
+  const g = edGeom(); ed.scroll = Math.max(0, b - (g.bot - g.top) / g.rowH / 2 * 0.3);
+  scheduleAudio();
+}
+function edPiece(k, x, y, w, h, alpha) {
+  ctx.globalAlpha = alpha; const cx = x + w / 2, cy = y + h / 2;
+  if (k === 'w') { ctx.fillStyle = INK.blue; ctx.fillRect(x + 1, y + 1, w - 2, h - 2); ctx.strokeStyle = INK.pink; ctx.lineWidth = 1.5; ctx.strokeRect(x + 2.5, y + 0.5, w - 3, h - 2); }
+  else if (k === 't') {
+    ctx.fillStyle = INK.pink; ctx.beginPath(); ctx.moveTo(x + 2, y + h - 1);
+    for (let i = 0; i < 4; i++) { const a = x + 2 + (w - 4) * i / 4, c = x + 2 + (w - 4) * (i + 1) / 4; ctx.lineTo((a + c) / 2, y + 1); ctx.lineTo(c, y + h - 1); }
+    ctx.closePath(); ctx.fill();
+  }
+  else if (k === 'p') { ctx.fillStyle = INK.pink; ctx.fillRect(x + 3, y + 1, w - 6, h - 2); ctx.fillStyle = INK.yellow; poly([x + w * 0.3, y + h * 0.85, cx, y + h * 0.15, x + w * 0.7, y + h * 0.85, cx, y + h * 0.55]); ctx.fill(); }
+  else if (k === 'r') { const r = Math.min(w * 0.4, h * 0.95); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.arc(cx, cy, r * 0.6, 0, TAU, true); ctx.fillStyle = INK.yellow; ctx.fill(); ctx.strokeStyle = INK.ink; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke(); }
+  else if (k === 'x') { ctx.strokeStyle = INK.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 6, y + 2); ctx.lineTo(x + w - 6, y + h - 2); ctx.moveTo(x + w - 6, y + 2); ctx.lineTo(x + 6, y + h - 2); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+function renderEditor() {
+  const ed = G.ed; if (!ed) return;
+  const L = ed.L, g = edGeom(), s2 = ed.scroll * 2;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.fillStyle = INK.paper; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = PAT.ground; ctx.fillRect(g.gx - 16, g.top, g.gw + 32, g.bot - g.top);
+  ctx.fillStyle = PAT.road; ctx.fillRect(g.gx, g.top, g.gw, g.bot - g.top);
+  ctx.fillStyle = PAT.rumble; ctx.fillRect(g.gx - 9, g.top, 7, g.bot - g.top); ctx.fillRect(g.gx + g.gw + 2, g.top, 7, g.bot - g.top);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, g.top, W, g.bot - g.top); ctx.clip();
+  const rows = Math.ceil((g.bot - g.top) / g.rowH) + 2, hb0 = Math.floor(s2), endHb = L.total * 2 - 4;
+  ctx.font = '11px "Courier Prime", monospace'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= rows; i++) {
+    const hb = hb0 + i, y = g.bot - (hb - s2) * g.rowH;
+    if (hb >= endHb) {
+      ctx.globalAlpha = 0.85; ctx.fillStyle = INK.paper; ctx.fillRect(g.gx - 16, g.top, g.gw + 32, y - g.top); ctx.globalAlpha = 1;
+      ctx.fillStyle = INK.ink; ctx.textAlign = 'center'; ctx.font = '18px Anton, Impact, sans-serif'; ctx.fillText('FINISH', g.gx + g.gw / 2, y - 14); break;
+    }
+    const bar = hb % 8 === 0, beat = hb % 2 === 0;
+    ctx.globalAlpha = bar ? 1 : beat ? 0.75 : 0.28; ctx.fillStyle = bar ? INK.pink : beat ? INK.blue : INK.ink;
+    ctx.fillRect(g.gx, y - (bar ? 1.5 : 0.5), g.gw, bar ? 3 : 1);
+    if (bar) { ctx.globalAlpha = 0.85; ctx.fillStyle = INK.ink; ctx.textAlign = 'right'; ctx.fillText(String(hb / 8 + 1), g.gx - 20, y); }
+  }
+  ctx.globalAlpha = 0.2; ctx.fillStyle = INK.ink;
+  for (let l = 1; l < LANES; l++) ctx.fillRect(Math.round(g.gx + l * g.lw), g.top, 1, g.bot - g.top);
+  ctx.globalAlpha = 1; ctx.textAlign = 'left';
+  for (const s of L.sections) {
+    const y = g.bot - (s.b0 * 2 - s2) * g.rowH; if (y < g.top - 30 || y > g.bot + 30) continue;
+    ctx.fillStyle = INK.ink; ctx.fillRect(g.gx + g.gw + 12, y - 1, 8, 2);
+    ctx.font = '20px Anton, Impact, sans-serif'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s.name, g.gx + g.gw + 24, y + 2);
+    ctx.font = '11px "Courier Prime", monospace'; ctx.fillText('×' + s.speed.toFixed(2) + ' speed', g.gx + g.gw + 24, y + 16); ctx.textBaseline = 'middle';
+  }
+  ctx.globalCompositeOperation = BLEND;
+  for (const [key, k] of ed.objs) {
+    const hb = Math.floor(key / 8), lane = key % 8; if (hb < hb0 - 1 || hb > hb0 + rows) continue;
+    edPiece(k, g.gx + lane * g.lw, g.bot - (hb + 1 - s2) * g.rowH, g.lw, g.rowH, 1);
+  }
+  const hv = ed.hover;
+  if (hv) {
+    const x = g.gx + hv.lane * g.lw, y = g.bot - (hv.hb + 1 - s2) * g.rowH;
+    edPiece(ed.tool, x, y, g.lw, g.rowH, 0.45); ctx.strokeStyle = INK.ink; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, y + 0.5, g.lw - 1, g.rowH - 1);
+  }
+  if (ed.playing) { const y = g.bot - (ed.head * 2 - s2) * g.rowH; ctx.fillStyle = INK.pink; ctx.fillRect(g.gx - 16, y - 1.5, g.gw + 32, 3); poly([g.gx - 26, y - 6, g.gx - 16, y, g.gx - 26, y + 6]); ctx.fill(); }
+  ctx.restore();
+  ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = INK.ink; ctx.textBaseline = 'alphabetic';
+  ctx.font = '11px "Courier Prime", monospace'; ctx.textAlign = 'right'; ctx.fillText('bar', g.gx - 20, g.top - 10);
+  ctx.textAlign = 'center'; ctx.fillText(ed.scroll < 0.5 ? 'start of the song ↓' : '↑ later in the song', g.gx + g.gw / 2, g.top - 10);
+  ctx.globalCompositeOperation = BLEND; ctx.fillStyle = PAT.grain; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over';
+}
+function edTest() {
+  stopEdMusic(); const d = edData();
+  if (!d.objs.length) { $('edMsg').textContent = 'Put a few pieces down first.'; return; }
+  cv.style.cursor = '';
+  startCustom(d, { name: d.name || 'untitled', id: null, test: true, sig: edSig() });
+}
+async function edPublish() {
+  stopEdMusic(); const d = edData(), m = $('edMsg');
+  if (!sbReady()) { m.textContent = 'Publishing needs the database connected first (see the README). Your level is saved on this computer.'; return; }
+  if (!d.name) { m.textContent = 'Give it a name first.'; $('edName').focus(); return; }
+  if (d.objs.length < 8) { m.textContent = 'Put down at least 8 pieces first.'; return; }
+  if (G.ed.tested !== edSig()) { m.textContent = 'Drive it to the finish once with Test drive before publishing. Every edit needs a fresh drive.'; return; }
+  m.textContent = 'Publishing…';
+  try {
+    const rows = await sbPublish({ name: d.name, author: S.name, seed: d.seed, tier: d.tier, data: { v: 1, objs: d.objs } });
+    const id = rows && rows[0] && rows[0].id; m.textContent = '';
+    if (id) { copy(levelLink(id), 'Published. Link copied, send it to anyone.'); openCommunity(id); } else toast('Published.');
+  } catch (e) { m.textContent = 'Could not publish: ' + e.message; }
+}
+$('edName').addEventListener('input', e => { G.ed.name = e.target.value.slice(0, 40); edSave(); });
+$('edSeed').addEventListener('input', e => { const v = e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 6); e.target.value = v; if (v) { G.ed.seed = v; edSongChanged(); } });
+$('edReroll').onclick = () => { G.ed.seed = randSeed(); edSongChanged(); };
+tierSeg($('edTier'), d => { G.ed.tier = d; edSongChanged(); });
+for (const b of $('edTools').children) b.onclick = () => { G.ed.tool = b.dataset.k; syncEditor(); b.blur(); };
+$('edTest').onclick = () => { audioInit(); edTest(); };
+$('edPublish').onclick = () => edPublish();
+$('edListen').onclick = e => { e.currentTarget.blur(); toggleEdMusic(); };
+$('edClear').onclick = () => { if (G.ed.objs.size && confirm('Clear every piece on this level?')) { G.ed.objs.clear(); edSave(); } };
+$('edBack').onclick = () => { stopEdMusic(); cv.style.cursor = ''; G.L = null; G.mode = 'menu'; showScreen('menu'); attractReset(); syncMenu(); };
+$('btnBuild').onclick = () => { audioInit(); openEditor(); };
+$('btnComBuild').onclick = () => { audioInit(); openEditor(); };
+cv.addEventListener('wheel', e => { if (G.mode === 'editor') { e.preventDefault(); edScroll(e.deltaY > 0 ? -2 : 2); } }, { passive: false });
+addEventListener('pointerup', () => { if (G.ed) G.ed.drag = null; });
+cv.addEventListener('pointerleave', () => { if (G.ed) G.ed.hover = null; });
+
+// ---------------------------------------------------------------- the library (community levels)
+const COM = { list: [], sel: null };
+async function openCommunity(focusId) {
+  stopEdMusic(); cv.style.cursor = ''; G.mode = 'menu'; G.L = null; showScreen('community'); attractReset();
+  $('btnComPlay').disabled = true; $('comShare').textContent = ''; $('comList').innerHTML = ''; $('comCount').textContent = '';
+  if (!sbReady()) { $('comMsg').textContent = 'Community levels aren\'t switched on yet: this copy of the game has no database connected. The README has the five-minute setup.'; return; }
+  $('comMsg').textContent = 'Fetching the library…';
+  try {
+    COM.list = (await sbList()) || [];
+    if (focusId && !COM.list.some(l => l.id === focusId)) { const one = await sbGet(focusId); if (one) COM.list.unshift(one); }
+    COM.sel = focusId && COM.list.some(l => l.id === focusId) ? focusId : null;
+    $('comMsg').textContent = COM.list.length ? '' : 'Nothing published yet. Build one and be the first.';
+    renderCom();
+  } catch (e) { $('comMsg').textContent = 'Could not reach the level library: ' + e.message; }
+}
+function renderCom() {
+  $('comCount').textContent = COM.list.length ? COM.list.length + ' levels' : '';
+  $('comList').innerHTML = COM.list.map((l, i) => {
+    const b = store.get('best2.c.' + l.id, null), t = clamp(l.tier | 0, 0, 4);
+    return `<li data-id="${esc(l.id)}" data-t="${t}" class="${COM.sel === l.id ? 'on' : ''}"><span class="no">${String(i + 1).padStart(2, '0')}</span><span class="nm">${esc(l.name)}<span class="by">by ${esc(l.author)}</span></span><span class="tier">${TIERS[t].name}</span><span class="best">${b ? b.score.toLocaleString() : '—'}</span></li>`;
+  }).join('');
+  $('btnComPlay').disabled = !COM.sel;
+  $('comShare').textContent = COM.sel ? 'Link to this level: ' + levelLink(COM.sel) : '';
+}
+async function playCommunity(id) {
+  audioInit(); if (!id) return; $('comMsg').textContent = 'Loading the level…';
+  try {
+    const d = cleanLevel(await sbGet(id)); if (!d) throw new Error('that level is missing or damaged');
+    $('comMsg').textContent = ''; startCustom(d, { name: d.name, author: d.author, id: d.id });
+  } catch (e) { $('comMsg').textContent = 'Could not load it: ' + e.message; }
+}
+$('comList').addEventListener('click', e => { const li = e.target.closest('li'); if (!li) return; COM.sel = li.dataset.id; renderCom(); });
+$('comList').addEventListener('dblclick', e => { if (e.target.closest('li')) playCommunity(COM.sel); });
+$('btnComPlay').onclick = () => playCommunity(COM.sel);
+$('btnComBack').onclick = () => { G.mode = 'menu'; showScreen('menu'); syncMenu(); };
+$('btnCommunity').onclick = () => { audioInit(); openCommunity(); };
 
 // ---------------------------------------------------------------- networking (PeerJS = introductions only, then a direct WebRTC data channel)
 const NET = { peer: null, role: null, code: null, me: null, hostId: null, conns: new Map(), host: null, samples: [], offset: 0, rtt: 0, pingTimer: 0, seed: null, diff: 0 };
@@ -1805,6 +2145,7 @@ function onGone(id) { const l = LIVE.get(id); if (l) { l.gone = true; if (G.mode
   syncMenu(); showScreen('menu');
   if (m) { $('inCode').value = m[1].toUpperCase(); menuMsg(`You were invited to room ${m[1].toUpperCase()}. Set a name, then hit Join.`); }
   G.L = getLevel('demo', 2); resetLevel(G.L);
+  const lv = location.hash.match(/level=([0-9a-f-]{36})/i); if (lv) openCommunity(lv[1].toLowerCase());
   if (document.fonts && document.fonts.load) { document.fonts.load('40px Anton'); document.fonts.load('16px "Permanent Marker"'); }
   requestAnimationFrame(frame);
   window.__misprint = { G, NET, S, LIVE, ROSTER, getLevel };
