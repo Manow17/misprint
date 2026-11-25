@@ -761,14 +761,37 @@ addEventListener('keyup', e => {
 addEventListener('blur', () => { KEYS.left = KEYS.right = false; HELD.clear(); });
 addEventListener('pointerup', e => { HELD.delete('p' + e.pointerId); });
 addEventListener('pointercancel', e => { HELD.delete('p' + e.pointerId); });
-cv.addEventListener('pointermove', e => { if (G.mode !== 'race') return; if (G.mouseX != null && Math.abs(e.clientX - G.mouseX) > 1.5) G.steer = 'mouse'; G.mouseX = e.clientX; });
+// ---- mouse lock: during a race the cursor is captured, so it can't wander onto the
+// browser's tab strip (where a right-click steals focus). Steering then runs on a
+// virtual cursor built from raw mouse movement.
+const isLocked = () => document.pointerLockElement === cv;
+function lockMouse() {
+  if (isLocked() || !cv.requestPointerLock || G.mode !== 'race') return;
+  try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => { }); } catch (e) { }
+}
+function unlockMouse() { if (isLocked() && document.exitPointerLock) document.exitPointerLock(); }
+document.addEventListener('pointerlockchange', () => {
+  if (isLocked()) { if (G.mouseX == null) G.mouseX = CX; }
+  else if (G.mode === 'race' && !G.finished) toast('Mouse released. Click the road to lock it back in.');
+});
+document.addEventListener('pointerlockerror', () => { if (G.mode === 'race' && !G.finished) toast('Click the road to lock your mouse in.'); });
+cv.addEventListener('pointermove', e => {
+  if (G.mode !== 'race') return;
+  if (isLocked()) {
+    if (e.movementX) { G.steer = 'mouse'; G.mouseX = clamp((G.mouseX == null ? CX : G.mouseX) + e.movementX, 0, W); }
+    return;
+  }
+  if (G.mouseX != null && Math.abs(e.clientX - G.mouseX) > 1.5) G.steer = 'mouse'; G.mouseX = e.clientX;
+});
 cv.addEventListener('pointerdown', e => {
   audioInit();
   if (G.mode !== 'race') return;
   if (e.pointerType === 'touch') { G.steer = 'mouse'; G.mouseX = e.clientX; if (e.clientY > H * 0.7) doJump(e.timeStamp); else { HELD.add('p' + e.pointerId); doTap(e.timeStamp); } return; }
+  if (!G.finished) lockMouse();
   if (e.button === 2) doJump(e.timeStamp); else if (e.button === 0) { HELD.add('p' + e.pointerId); doTap(e.timeStamp); }
 });
 cv.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('contextmenu', e => { if (G.mode === 'race') e.preventDefault(); });
 document.addEventListener('pointerdown', () => audioInit(), { capture: true });
 
 function onEsc() {
@@ -851,6 +874,7 @@ function startRace(o) {
   G.word = ''; showScreen(null); $('hud').hidden = false; document.body.classList.add('racing');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   buildRuler();
+  G.mouseX = null; lockMouse();   // works when the race starts from a click; otherwise the first click on the road locks it
 }
 function tryEnableAudio() {
   if (G.audioOn || !AU.ctx || AU.ctx.state !== 'running') return;
@@ -873,11 +897,11 @@ function finishRace(forfeit) {
     if (!prev || G.score > prev.score) { store.set(key, { score: G.score, name: S.name, ghost: G.rec }); G.result.newBest = !!prev; G.result.firstBest = !prev; }
     G.result.prev = prev ? prev.score : null;
   }
-  G.mode = 'results'; document.body.classList.remove('racing');
+  G.mode = 'results'; document.body.classList.remove('racing'); unlockMouse();
   showScreen('results'); renderResults();
 }
 function quitToMenu() {
-  G.audioOn = false; G.mode = 'menu'; $('hud').hidden = true; document.body.classList.remove('racing');
+  G.audioOn = false; G.mode = 'menu'; $('hud').hidden = true; document.body.classList.remove('racing'); unlockMouse();
   netClose(); showScreen('menu'); attractReset();
 }
 
@@ -967,12 +991,13 @@ function updateRace(now, dt) {
   G.lastPz = pz;
   camFollow(pz, dt, p.x);
 }
-function camMix() { const sp = G.split && (G.mode === 'race' || G.mode === 'results'); return { ro: sp ? (G.road ? SPLIT : -SPLIT) : 0, cb: sp ? 0.6 : 0, cf: sp ? 0.3 : 0.45 }; }
+// camera sits on your own road (centered) in both solo and two-road races
+function camMix() { const sp = G.split && (G.mode === 'race' || G.mode === 'results'); return { ro: sp ? (G.road ? SPLIT : -SPLIT) : 0, cb: sp ? 1 : 0, cf: 0.45 }; }
 function camFollow(pz, dt, px) {
   const L = G.L, cm = camMix();
   const prevZ = G.camZ; G.camZ = pz - PZOFF;
   G.camX = lerp(G.camX, (cm.ro * cm.cb + px * cm.cf) * ROAD_W, Math.min(1, dt * 8));
-  G.kz = lerp(G.kz || 1, cm.cb ? 0.68 : 1, Math.min(1, dt * 3));
+  G.kz = lerp(G.kz || 1, cm.cb ? 0.94 : 1, Math.min(1, dt * 3));
   G.camY = hill(L, pz) + CAM_H + G.p.y * 0.18;
   const dz = G.camZ - prevZ; if (dz > 0 && dz < 3000) G.sky += curveAt(L, pz) * dz / SEG * 0.0011;
   CX = lerp(CX || W / 2, W / 2 + (sheetVisible() && W > 860 ? Math.min(W * 0.2, 300) : 0), Math.min(1, dt * 4));
@@ -1333,14 +1358,31 @@ function drawShips(now, t) {
     if (G.solo && G.best && G.best.ghost) {
       const s = sampleRec(G.best.ghost, t); if (s) drawShip(pz, s.x, s.y, INK.grey, 0.55, 0, 'best run', false);
     }
+    const edges = { l: 0, r: 0 };
     for (const [id, l] of LIVE) {
       if (l.gone) continue; const s = sampleBuf(l.buf, t - 0.12); if (!s) continue;
-      drawShip(pz, (split ? (l.road ? SPLIT : -SPLIT) : 0) + s.x, s.y, PLAYER_INK[l.ink % PLAYER_INK.length], 0.85, 0, l.name, l.w);
+      const lat = (split ? (l.road ? SPLIT : -SPLIT) : 0) + s.x, ink = PLAYER_INK[l.ink % PLAYER_INK.length];
+      drawShip(pz, lat, s.y, ink, 0.85, 0, l.name, l.w);
+      const g = proj(pz, lat, 0); if (g && (g.x < 24 || g.x > W - 24)) edgeTag(g.x < W / 2, l.name, ink, l.w, g.y, edges);
     }
   }
   const p = G.p; const blink = (G.t < G.inv && !p.wrecked) ? (Math.floor(now / 70) % 2 ? 0.35 : 0.9) : 1;
   const myInk = G.mode === 'menu' || G.mode === 'lobby' ? INK.ink : PLAYER_INK[(ROSTER.get(myId()) || { ink: 0 }).ink % PLAYER_INK.length];
-  drawShip(pz, (split ? (G.road ? SPLIT : -SPLIT) : 0) + p.x, p.y, myInk, blink, -p.vx * 0.07, split ? 'you' : null, p.wrecked, true);
+  drawShip(pz, (split ? (G.road ? SPLIT : -SPLIT) : 0) + p.x, p.y, myInk, blink, -p.vx * 0.07, null, p.wrecked, true);
+  // aim mark for the locked mouse: a small pink caret where the ship is headed
+  if (G.mode === 'race' && G.steer === 'mouse' && G.mouseX != null && isLocked() && !p.wrecked) {
+    const g = proj(pz, myRo() + p.x, 0);
+    if (g) { const y = g.y + 16; ctx.globalAlpha = 0.9; ctx.fillStyle = INK.pink; poly([G.mouseX, y - 7, G.mouseX + 6, y + 4, G.mouseX - 6, y + 4]); ctx.fill(); ctx.globalAlpha = 1; }
+  }
+}
+// a rival whose ship is off the side of the screen gets a tag pinned to that edge
+function edgeTag(left, name, ink, out, y, edges) {
+  const k = left ? 'l' : 'r', ty = clamp(y - 40 - edges[k]++ * 26, 70, H - 70), x = left ? 14 : W - 14, d = left ? 1 : -1;
+  ctx.globalAlpha = out ? 0.45 : 0.95; ctx.fillStyle = ink;
+  poly([x, ty, x + d * 10, ty - 7, x + d * 10, ty + 7]); ctx.fill();
+  ctx.font = '15px "Permanent Marker", cursive'; ctx.textBaseline = 'middle'; ctx.textAlign = left ? 'left' : 'right';
+  ctx.fillText(name, x + d * 15, ty + 1);
+  ctx.globalAlpha = 1;
 }
 function drawShip(z, lat, lift, ink, alpha, tilt, label, wreck, me) {
   const g = proj(z, lat, 0); if (!g) return;
