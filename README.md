@@ -47,7 +47,7 @@ If you fork this, point it at your own free [Supabase](https://supabase.com) pro
    ```
 5. Commit and push. Done.
 
-The anon/publishable key is meant to sit in a public website. The rules in `levels.sql` only let visitors read levels and add new ones; nobody can edit or delete through the site. You can remove spam from the Supabase **Table Editor**. Free projects go to sleep after a week with no visitors; waking one up is a single click in the Supabase dashboard.
+The anon/publishable key is meant to sit in a public website. The rules in `levels.sql` only let visitors read levels and add new ones; nobody can edit or delete through the site. Each connection (IP address) can publish at most 15 levels per 24 hours; the database enforces this, and only a hash of the IP is kept. You can remove spam from the Supabase **Table Editor**. Free projects go to sleep after a week with no visitors; waking one up is a single click in the Supabase dashboard.
 
 ## Run it locally
 

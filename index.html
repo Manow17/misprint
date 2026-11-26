@@ -1807,9 +1807,14 @@ function syncEditor() {
   for (const b of $('edTools').children) b.classList.toggle('on', b.dataset.k === ed.tool);
   syncEditorInfo();
 }
+// The database enforces 15 publishes per connection per 24 hours; this local tally just
+// lets the workshop say how many are left before anyone hits the wall.
+const PUBLISH_LIMIT = 15;
+function recentPublishes() { const now = Date.now(); return (store.get('pubs', []) || []).filter(t => now - t < 864e5); }
 function syncEditorInfo() {
   const ed = G.ed, L = ed.L, secs = Math.round(L.endTime), ok = ed.tested && ed.tested === edSig();
-  $('edInfo').textContent = `${TIERS[ed.tier].name} speed · ${L.bpm} bpm · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} long. ${ok ? 'Driven to the finish: ready to publish.' : 'Not test-driven yet.'}`;
+  const left = Math.max(0, PUBLISH_LIMIT - recentPublishes().length);
+  $('edInfo').textContent = `${TIERS[ed.tier].name} speed · ${L.bpm} bpm · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} long. ${ok ? 'Driven to the finish: ready to publish.' : 'Not test-driven yet.'} ${left} of ${PUBLISH_LIMIT} publishes left today.`;
   $('edCount').textContent = `${ed.objs.size} piece${ed.objs.size === 1 ? '' : 's'}`;
 }
 function edSongChanged() { stopEdMusic(); const ed = G.ed; ed.L = getLevel(ed.seed, ed.tier); ed.scroll = clamp(ed.scroll, 0, ed.L.total - 4); syncEditor(); edSave(); }
@@ -1942,12 +1947,15 @@ async function edPublish() {
   if (!d.name) { m.textContent = 'Give it a name first.'; $('edName').focus(); return; }
   if (d.objs.length < 8) { m.textContent = 'Put down at least 8 pieces first.'; return; }
   if (G.ed.tested !== edSig()) { m.textContent = 'Drive it to the finish once with Test drive before publishing. Every edit needs a fresh drive.'; return; }
+  const recent = recentPublishes();
+  if (recent.length >= PUBLISH_LIMIT) { syncEditorInfo(); const hrs = Math.ceil((864e5 - (Date.now() - Math.min(...recent))) / 36e5); m.textContent = `That's ${PUBLISH_LIMIT} publishes today, the daily limit. You can publish again in about ${hrs} hour${hrs === 1 ? '' : 's'}. Your level is saved here meanwhile.`; return; }
   m.textContent = 'Publishing…';
   try {
     const rows = await sbPublish({ name: d.name, author: S.name, seed: d.seed, tier: d.tier, data: { v: 1, objs: d.objs } });
+    store.set('pubs', recent.concat(Date.now())); syncEditorInfo();
     const id = rows && rows[0] && rows[0].id; m.textContent = '';
     if (id) { copy(levelLink(id), 'Published. Link copied, send it to anyone.'); openCommunity(id); } else toast('Published.');
-  } catch (e) { m.textContent = 'Could not publish: ' + e.message; }
+  } catch (e) { m.textContent = /Daily limit/i.test(e.message) ? e.message + ' Your level is saved here meanwhile.' : 'Could not publish: ' + e.message; }
 }
 $('edName').addEventListener('input', e => { G.ed.name = e.target.value.slice(0, 40); edSave(); });
 $('edSeed').addEventListener('input', e => { const v = e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 6); e.target.value = v; if (v) { G.ed.seed = v; edSongChanged(); } });
