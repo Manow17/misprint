@@ -29,9 +29,13 @@ Connections are peer to peer over WebRTC. The public [PeerJS](https://peerjs.com
 
 **Build a level** opens the workshop. Pick a song number and a speed, then click squares on the road to place rings, walls, teeth and pads. Press space to hear the music while you place things. **Test drive** plays it, and once you've driven it to the finish you can **Publish** it so anyone can play it from **Community levels**. Drafts save in your browser automatically.
 
-## Turn on community levels (free, about 5 minutes)
+## Community levels
 
-Publishing and browsing levels needs a small free database. This game uses [Supabase](https://supabase.com).
+The live site is already connected to a Supabase database, so publishing and browsing work out of the box.
+
+### Connecting your own copy (free, about 5 minutes)
+
+If you fork this, point it at your own free [Supabase](https://supabase.com) project:
 
 1. Sign up at supabase.com and click **New project**. Any name and region works. Save the database password somewhere, though the game never needs it.
 2. When the project is ready, open **SQL Editor** in the left sidebar, start a new query, paste everything from [`supabase/levels.sql`](supabase/levels.sql), and press **Run**.

@@ -1718,8 +1718,8 @@ $('btnMenu').onclick = () => {
 // ---------------------------------------------------------------- community levels (Supabase)
 // Paste your Supabase "Project URL" and its anon / publishable key here (README has the steps).
 // That key is designed to be public: the database rules only let people read levels and add new ones.
-const SUPABASE_URL = '';
-const SUPABASE_KEY = '';
+const SUPABASE_URL = 'https://waunbrrkllapiiudyany.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sR5CsQabDOeLh0tjONimBA_uvme9xrB';
 const sbReady = () => !!(SUPABASE_URL && SUPABASE_KEY);
 async function sb(path, opts = {}) {
   const headers = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
